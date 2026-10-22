@@ -12,7 +12,11 @@
  * ※コードを変更したら「デプロイを管理 → 編集 → バージョン：新バージョン」で再デプロイが必要です。
  */
 
-const API_VERSION = 'v1.0.0';
+const API_VERSION = 'v1.0.1';
+
+// 指定モデルが廃止（404）だったときに順に試すモデル
+const TEXT_MODEL_FALLBACKS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
+const TTS_MODEL_FALLBACKS = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts'];
 const SESSION_TTL_SEC = 21600;   // 6時間（CacheService の上限）。利用するたびに延長
 const MAX_LOGIN_FAIL = 5;
 const LOCK_MINUTES = 15;
@@ -139,8 +143,8 @@ function setup() {
   const st = ss.getSheetByName(SHEET.SETTINGS);
   if (st.getLastRow() === 1) {
     st.getRange(2, 1, 4, 3).setValues([
-      ['GEMINI_MODEL', 'gemini-2.5-flash', 'テキスト生成に使うモデル名（新しいモデルが出たらここを書き換え）'],
-      ['GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts', '読み上げ（TTS）モデル名'],
+      ['GEMINI_MODEL', 'gemini-3.8-flash', 'テキスト生成に使うモデル名（新しいモデルが出たらここを書き換え）'],
+      ['GEMINI_TTS_MODEL', 'gemini-3.8-flash-tts', '読み上げ（TTS）モデル名'],
       ['TTS_VOICE', 'Kore', '読み上げの声（Kore / Puck / Aoede など）'],
       ['OUTDOOR_KEYWORDS', '散歩,おでかけ,お出かけ,外出,公園,海,山,川,湖,旅,ドライブ,サイクリング,自転車,カフェ,喫茶,神社,寺,温泉,ハイキング,キャンプ,買い物,街歩き,美術館,博物館,動物園,水族館,展望,花見,紅葉,ランチ,商店街,駅', '外出系と判定するキーワード（カンマ区切り）']
     ]);
@@ -499,6 +503,9 @@ function geminiRaw_(model, body) {
     muteHttpExceptions: true
   });
   const code = res.getResponseCode();
+  if (code === 404) {
+    throw new AppError('MODEL_NOT_FOUND', 'モデル「' + model + '」が見つかりません');
+  }
   if (code !== 200) {
     console.error('Gemini error ' + code + ': ' + res.getContentText().slice(0, 500));
     throw new AppError('AI_FAILED', code === 429
@@ -508,9 +515,29 @@ function geminiRaw_(model, body) {
   return JSON.parse(res.getContentText());
 }
 
+/** 指定モデル → 代替モデルの順に試す（廃止モデル対策） */
+function geminiCall_(primary, fallbacks, body) {
+  const seen = {};
+  const list = [primary].concat(fallbacks).filter(function (m) {
+    if (!m || seen[m]) return false;
+    seen[m] = true;
+    return true;
+  });
+  for (let i = 0; i < list.length; i++) {
+    try {
+      const data = geminiRaw_(list[i], body);
+      if (i > 0) console.warn('モデル「' + primary + '」は使えないため「' + list[i] + '」を使用しました。Settingsシートを更新してください');
+      return data;
+    } catch (e) {
+      if (e.code !== 'MODEL_NOT_FOUND') throw e;
+    }
+  }
+  throw new AppError('AI_FAILED', '使えるAIモデルが見つかりません。SettingsシートのGEMINI_MODEL / GEMINI_TTS_MODEL を確認してください');
+}
+
 function geminiJson_(prompt, temperature) {
-  const model = setting_('GEMINI_MODEL', 'gemini-2.5-flash');
-  const data = geminiRaw_(model, {
+  const model = setting_('GEMINI_MODEL', TEXT_MODEL_FALLBACKS[0]);
+  const data = geminiCall_(model, TEXT_MODEL_FALLBACKS, {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { temperature: temperature === undefined ? 0.9 : temperature, responseMimeType: 'application/json' }
   });
@@ -767,9 +794,9 @@ function apiGetPhoto_(req, user) {
 function apiTts_(req, user) {
   const text = str_(req.text, 600);
   if (!text) throw new AppError('INVALID', '読み上げる文章がありません');
-  const model = setting_('GEMINI_TTS_MODEL', 'gemini-2.5-flash-preview-tts');
+  const model = setting_('GEMINI_TTS_MODEL', TTS_MODEL_FALLBACKS[0]);
   const voice = setting_('TTS_VOICE', 'Kore');
-  const data = geminiRaw_(model, {
+  const data = geminiCall_(model, TTS_MODEL_FALLBACKS, {
     contents: [{ parts: [{ text: 'やさしく明るい声で、自然な日本語で読み上げてください：\n' + text }] }],
     generationConfig: {
       responseModalities: ['AUDIO'],

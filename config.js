@@ -4,7 +4,7 @@
  */
 const CONFIG = Object.freeze({
   APP_NAME: '今日は何をしよう',
-  APP_VERSION: 'v1.0.0',
+  APP_VERSION: 'v1.0.1',
 
   // GAS「ウェブアプリ」としてデプロイしたURL（末尾 /exec）
   GAS_API_URL: 'https://script.google.com/macros/s/AKfycbyqJNy_OAxcLm8A69n3C2q0Wy61CVS6Ed1QWauy9bALtshrRiE5O0eEBGW_dsuolev0/exec',

@@ -1,4 +1,4 @@
-# 今日は何をしよう（kyou-nani-shiyou） v1.0.0
+# 今日は何をしよう（kyou-nani-shiyou） v1.0.1
 
 くじ（ルーレット／あみだくじ／トランプ／おみくじ）で今日やることを決め、話すだけで日記に残し、AIがエンタメ分析するWebアプリ。
 
@@ -96,11 +96,12 @@ kyou-nani-shiyou/          ← GitHub リポジトリ（GitHub Pages で公開�
 
 ### 5-6. AIモデルの変更
 Settings シートの値を書き換えるだけで反映されます（最大10分キャッシュ）。
-- `GEMINI_MODEL`：テキスト生成（初期値 `gemini-2.5-flash`）
-- `GEMINI_TTS_MODEL`：読み上げ（初期値 `gemini-2.5-flash-preview-tts`）
+- `GEMINI_MODEL`：テキスト生成（初期値 `gemini-3.8-flash`）
+- `GEMINI_TTS_MODEL`：読み上げ（初期値 `gemini-3.8-flash-tts`）
 - `TTS_VOICE`：声（Kore / Puck / Aoede など）
 
 新しいモデル名に変える場合は、AI Studio のモデル一覧で正式な名前を確認してから入れてください。
+指定したモデルが廃止（404）になっていても、Code.gs の `TEXT_MODEL_FALLBACKS` / `TTS_MODEL_FALLBACKS` の順に自動で代替モデルを試します。
 
 ---
 
